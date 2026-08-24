@@ -10,6 +10,9 @@ import com.abi.coding_tracker.exception.DuplicateResourceException;
 import com.abi.coding_tracker.exception.ResourceNotFoundException;
 import com.abi.coding_tracker.repository.UserRepository;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class UserService {
     
@@ -22,12 +25,16 @@ public class UserService {
     }
 
     public User saveUser(User user){
+        log.info("Attempting to save user with email: {}", user.getEmail());
 
         if(userRepository.existsByEmail(user.getEmail())){
+            log.warn("Registration failed. Email already exists: {}", user.getEmail());
             throw new DuplicateResourceException("An account with this mail already exist");
         }
         String hashed = passwordEncoder.encode(user.getPassword());
         user.setPassword(hashed);
+
+        log.info("Password hashed successfully. Saving user to database.");
         return userRepository.save(user);
     }
 

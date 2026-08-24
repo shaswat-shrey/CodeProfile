@@ -2,6 +2,7 @@ package com.abi.coding_tracker.contests.entity;
 
 import com.abi.coding_tracker.entity.User;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -14,7 +15,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "contests_participations")
+@Table(name = "contest_participations")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -29,13 +30,18 @@ public class ContestPartitcipation {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(name = "contest_id")
     private String contestId;
-
-    private String platfom;
-
+    
+    @Column(name = "platform")
+    private String platform;
+    
+    @Column(name = "rank")
     private Integer rank;
-
+    
+    @Column(name = "rating_change")
     private Integer ratingChange;
-
+    
+    @Column(name = "attended")
     private boolean attended;
 }

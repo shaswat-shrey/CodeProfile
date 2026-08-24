@@ -12,6 +12,8 @@ import com.abi.coding_tracker.leetcode.dto.LeetcodeStatsResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper; // ADD THIS IMPORT
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
@@ -25,6 +27,8 @@ public class LeetcodeService {
         this.webClient = webClientBuilder.baseUrl("https://leetcode.com/").build();
     }
 
+    @Retry(name = "leetcode", fallbackMethod = "leetcodeFallback")
+    @CircuitBreaker(name = "leetcode", fallbackMethod = "leetcodeFallback")
     public LeetcodeStatsResponse fetchUserProfile(String username){
         log.info("Fetching leetcode profile for username : {}", username);
 
@@ -132,5 +136,16 @@ public class LeetcodeService {
                     return new ExternalApiException("An unexpected error occurred", 500);
                 })
                 .block();
+    }
+
+    public LeetcodeStatsResponse leetcodeFallback(String username, Throwable throwable){
+        if(throwable instanceof ExternalApiException ex){
+            if(ex.getStatusCode() >= 400 && ex.getStatusCode()<500){
+                throw ex;
+            }
+
+        }
+        log.error("LeetCode API fallback triggered for {}. Reason: {}", username, throwable.getMessage());
+        throw new ExternalApiException("LeetCode service is temporarily unavailable or timed out. Please try again later.", 503);
     }
 }

@@ -101,7 +101,7 @@ public class LeetcodeProfileService implements CodingPlatformService {
         return savedProfile;
     }
 
-    @Transactional
+    @Cacheable(value = "leetcodeStats", key = "#userEmail", condition = "!#forceRefresh")
     public LeetcodeStatsResponse fetchAndSaveMyStats(String userEmail, boolean forceRefresh) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -113,8 +113,8 @@ public class LeetcodeProfileService implements CodingPlatformService {
         return syncProfileStats(profile, forceRefresh);
     }
 
-    @Transactional
-    public LeetcodeStatsResponse syncProfileStats(LeetcodeProfile profile, boolean forceRefresh) {
+    
+    protected LeetcodeStatsResponse syncProfileStats(LeetcodeProfile profile, boolean forceRefresh) {
         LocalDateTime lastSynced = profile.getLastSyncedAt();
         LocalDateTime now = LocalDateTime.now();
 
@@ -130,36 +130,8 @@ public class LeetcodeProfileService implements CodingPlatformService {
     
             LeetcodeStatsResponse currentStats = leetcodeService.fetchUserProfile(profile.getUsername());
 
-        
-            Optional<LeetcodeStatsSnapshot> latestSnapshotOpt = snapshotRepository.findTopByProfileOrderByFetchedAtDesc(profile);
+            saveSnapshotData(profile, currentStats, now);
             
-            boolean isDuplicate = latestSnapshotOpt.map(latest -> 
-                latest.getTotalSolved() == currentStats.getTotalSolved() &&
-                latest.getEasySolved() == currentStats.getEasySolved() &&
-                latest.getMediumSolved() == currentStats.getMediumSolved() &&
-                latest.getHardSolved() == currentStats.getHardSolved() &&
-                latest.getRanking() == currentStats.getRanking()
-            ).orElse(false);
-
-            if (isDuplicate) {
-                log.info("Fresh stats match latest snapshot for {}. Skipping duplicate save.", profile.getUsername());
-            } else {
-                LeetcodeStatsSnapshot snapshot = new LeetcodeStatsSnapshot();
-                snapshot.setProfile(profile);
-                snapshot.setTotalSolved(currentStats.getTotalSolved());
-                snapshot.setEasySolved(currentStats.getEasySolved());
-                snapshot.setMediumSolved(currentStats.getMediumSolved());
-                snapshot.setHardSolved(currentStats.getHardSolved());
-                snapshot.setRanking(currentStats.getRanking());
-                
-                snapshotRepository.save(snapshot);
-                log.info("Successfully saved new stats snapshot for {}", profile.getUsername());
-            }
-
-            profile.setLastSyncedAt(now);
-            profileRepository.save(profile);
-
-
             currentStats.setCached(false);
             currentStats.setLastUpdated(now);
             return currentStats;
@@ -173,6 +145,37 @@ public class LeetcodeProfileService implements CodingPlatformService {
      
             throw e; 
         }
+    }
+
+    @Transactional
+    protected void saveSnapshotData(LeetcodeProfile profile, LeetcodeStatsResponse currentStats, LocalDateTime now){
+        Optional<LeetcodeStatsSnapshot> latestSnapshotOpt =snapshotRepository.findTopByProfileOrderByFetchedAtDesc(profile);
+
+        boolean isDuplicate = latestSnapshotOpt.map(latest->
+            latest.getTotalSolved() == currentStats.getTotalSolved() &&
+            latest.getEasySolved() == currentStats.getEasySolved() &&
+            latest.getMediumSolved() == currentStats.getMediumSolved() &&
+            latest.getHardSolved() == currentStats.getHardSolved() &&
+            latest.getRanking() == currentStats.getRanking()
+        ).orElse(false);
+
+        if(isDuplicate){
+            log.info("Fresh stats match latest snapshot for {}. skipping duplicate save.", profile.getUsername());
+        }else{
+            LeetcodeStatsSnapshot snapshot = new LeetcodeStatsSnapshot();
+            snapshot.setProfile(profile);
+            snapshot.setTotalSolved(currentStats.getTotalSolved());
+            snapshot.setEasySolved(currentStats.getEasySolved());
+            snapshot.setMediumSolved(currentStats.getMediumSolved());
+            snapshot.setHardSolved(currentStats.getHardSolved());
+            snapshot.setRanking(currentStats.getRanking());
+
+            snapshotRepository.save(snapshot);
+            log.info("Successfully saved new stats snapshot for {}.", profile.getUsername());
+        }
+
+        profile.setLastSyncedAt(now);
+        profileRepository.save(profile);
     }
 
 
