@@ -1,6 +1,7 @@
 package com.abi.coding_tracker.leetcode.controller;
 
 
+import com.abi.coding_tracker.notification.service.EmailService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -17,7 +18,7 @@ import com.abi.coding_tracker.leetcode.dto.LeetcodeStatsResponse;
 import com.abi.coding_tracker.leetcode.entity.LeetcodeProfile;
 import com.abi.coding_tracker.leetcode.service.LeetcodeProfileService;
 import com.abi.coding_tracker.leetcode.service.LeetcodeService;
-
+import com.abi.coding_tracker.security.RateLimiterService;
 
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -28,12 +29,16 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/leetcode")
 public class LeetcodeController {
     
+    private final EmailService emailService;
     private final LeetcodeService leetcodeService;
     private final LeetcodeProfileService leetcodeProfileService;
+    private final RateLimiterService rateLimiterService;
     
-    public LeetcodeController(LeetcodeService leetcodeService, LeetcodeProfileService leetcodeProfileService){
+    public LeetcodeController(LeetcodeService leetcodeService, LeetcodeProfileService leetcodeProfileService, RateLimiterService rateLimiterService, EmailService emailService){
         this.leetcodeService = leetcodeService;
         this.leetcodeProfileService = leetcodeProfileService;
+        this.rateLimiterService = rateLimiterService;
+        this.emailService = emailService;
     }
 
     @PostMapping("/connect")
@@ -41,6 +46,7 @@ public class LeetcodeController {
         String email = authentication.getName();
 
         log.info("Authenticated user [{}] request to connect Leetcode profile: {}",email,request.getUsername());
+        rateLimiterService.checkRateLimit(email, "leetcode_connect");
 
         LeetcodeProfile savedProfile = leetcodeProfileService.connectAccount(request.getUsername(), email);
 
@@ -69,7 +75,9 @@ public class LeetcodeController {
 
         log.info("Authenticated User [{}] requested their leetcode stats", mail);
 
-        LeetcodeStatsResponse response = leetcodeProfileService.fetchAndSaveMyStats(mail);
+        rateLimiterService.checkRateLimit(mail, "leetcode_fetch");
+
+        LeetcodeStatsResponse response = leetcodeProfileService.fetchAndSaveMyStats(mail,false);
 
         return ResponseEntity.ok(response);
     }
@@ -78,6 +86,8 @@ public class LeetcodeController {
     public ResponseEntity<LeetcodeStatsResponse> refreshMyLeetcodeStats(Authentication authentication){
         String email = authentication.getName();
         log.info("Authenticated user [{}] requested a FORCED refresh of their leetcode stats", email);
+
+        rateLimiterService.checkRateLimit(email, "leetcode_fetch");
 
         LeetcodeStatsResponse stats = leetcodeProfileService.fetchAndSaveMyStats(email, true);
 
